@@ -442,6 +442,9 @@ class CandidateSearchResultSerializer(serializers.Serializer):
     primary_location = serializers.CharField(allow_blank=True, required=False)
     experience_years = serializers.FloatField(required=False, allow_null=True)
     top_skills = serializers.CharField(allow_blank=True, required=False)
+    education_count = serializers.IntegerField(required=False)
+    language_count = serializers.IntegerField(required=False)
+    skill_count = serializers.IntegerField(required=False)
     score = serializers.FloatField()
     score_explanation = serializers.CharField()
 

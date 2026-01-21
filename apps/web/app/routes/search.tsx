@@ -18,11 +18,15 @@ type SearchResult = {
   top_skills?: string;  // Changed from string[] to string (comma-separated)
   experience_years?: number;
   primary_location?: string;
+  education_count?: number;
+  language_count?: number;
+  skill_count?: number;
 };
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState<"hu" | "en">("hu");
+  const [sort, setSort] = useState("score_desc");
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +72,7 @@ export default function SearchPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(nlqData.filters),
+        body: JSON.stringify({ ...nlqData.filters, sort }),
       });
 
       if (!searchResponse.ok) {
@@ -129,6 +133,23 @@ export default function SearchPage() {
               <option value="en">English</option>
             </select>
           </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-300">
+              Sort by
+            </label>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="score_desc">Score</option>
+              <option value="experience_desc">Experience</option>
+              <option value="education_desc">Education</option>
+              <option value="language_desc">Language</option>
+              <option value="skills_desc">Skills</option>
+              <option value="name_asc">Name (A-Z)</option>
+            </select>
+          </div>
         </div>
 
         <button
@@ -181,6 +202,18 @@ export default function SearchPage() {
                   )}
                   {candidate.primary_location && (
                     <span>📍 {candidate.primary_location}</span>
+                  )}
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                  {typeof candidate.education_count === "number" && (
+                    <span>Education: {candidate.education_count}</span>
+                  )}
+                  {typeof candidate.language_count === "number" && (
+                    <span>Languages: {candidate.language_count}</span>
+                  )}
+                  {typeof candidate.skill_count === "number" && (
+                    <span>Skills: {candidate.skill_count}</span>
                   )}
                 </div>
 

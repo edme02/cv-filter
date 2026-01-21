@@ -903,6 +903,19 @@ def _latest_structured_subquery(field_name: str):
     ).order_by("-created_at")
     return Subquery(latest_struct.values(field_name)[:1])
 
+def _count_structured_items(structured_json: dict | None, keys: list[str]) -> int:
+    if not isinstance(structured_json, dict):
+        return 0
+    total = 0
+    for key in keys:
+        items = structured_json.get(key) or []
+        if isinstance(items, list):
+            total += len([item for item in items if str(item).strip()])
+        elif isinstance(items, str):
+            if items.strip():
+                total += 1
+    return total
+
 
 def _compute_simple_score(
     must_have: list[str],
@@ -1079,6 +1092,7 @@ class CandidateSearchView(APIView):
             latest_primary_location=_latest_structured_subquery("primary_location"),
             latest_experience_years=_latest_structured_subquery("experience_years"),
             latest_top_skills=_latest_structured_subquery("top_skills"),
+            latest_structured_json=_latest_structured_subquery("structured_json"),
         )
 
         if location:
@@ -1103,9 +1117,22 @@ class CandidateSearchView(APIView):
         qs = qs[:200]
 
         results = []
+        skill_keys = [
+            "programming_languages",
+            "frameworks",
+            "databases",
+            "tools",
+            "cloud_platforms",
+            "soft_skills",
+        ]
+        education_keys = ["degrees", "certifications"]
         for c in qs:
             exp = getattr(c, "latest_experience_years", None)
             exp_f = float(exp) if exp is not None else None
+            structured_json = getattr(c, "latest_structured_json", None)
+            skill_count = _count_structured_items(structured_json, skill_keys)
+            education_count = _count_structured_items(structured_json, education_keys)
+            language_count = _count_structured_items(structured_json, ["languages"])
 
             score, expl = _compute_simple_score(
                 must_have=must_have,
@@ -1136,16 +1163,60 @@ class CandidateSearchView(APIView):
                 "primary_location": getattr(c, "latest_primary_location", "") or "",
                 "experience_years": exp_f,
                 "top_skills": getattr(c, "latest_top_skills", "") or "",
+                "education_count": education_count,
+                "language_count": language_count,
+                "skill_count": skill_count,
                 "score": score,
                 "score_explanation": expl,
             })
 
         if sort == "experience_desc":
-            results.sort(key=lambda x: (x["experience_years"] is None, -(x["experience_years"] or 0)))
+            results.sort(
+                key=lambda x: (
+                    x["experience_years"] is None,
+                    -(x["experience_years"] or 0),
+                    -x["score"],
+                    x["last_name"].lower(),
+                    x["first_name"].lower(),
+                )
+            )
+        elif sort == "education_desc":
+            results.sort(
+                key=lambda x: (
+                    -x["education_count"],
+                    -x["score"],
+                    x["last_name"].lower(),
+                    x["first_name"].lower(),
+                )
+            )
+        elif sort == "language_desc":
+            results.sort(
+                key=lambda x: (
+                    -x["language_count"],
+                    -x["score"],
+                    x["last_name"].lower(),
+                    x["first_name"].lower(),
+                )
+            )
+        elif sort == "skills_desc":
+            results.sort(
+                key=lambda x: (
+                    -x["skill_count"],
+                    -x["score"],
+                    x["last_name"].lower(),
+                    x["first_name"].lower(),
+                )
+            )
         elif sort == "name_asc":
             results.sort(key=lambda x: (x["last_name"].lower(), x["first_name"].lower()))
         else:
-            results.sort(key=lambda x: -x["score"])
+            results.sort(
+                key=lambda x: (
+                    -x["score"],
+                    x["last_name"].lower(),
+                    x["first_name"].lower(),
+                )
+            )
 
         out = CandidateSearchResultSerializer(results, many=True)
         return Response({"count": len(results), "results": out.data})
